@@ -133,13 +133,14 @@ body { margin: 0; }
     <div class="brand" id="brand"><img id="logo" alt="" hidden><h1 id="appTitle"></h1><button class="pencil" id="editBrand" type="button" aria-label="제목과 로고 바꾸기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1-4L16 5l3 3L8 19l-4 1zM14 7l3 3"/></svg></button></div>
     <div class="topbtns" id="topbtns">
       <button class="plain" id="shareBtn" type="button">공유하기</button>
+      <button class="plain" id="pwBtn" type="button">비밀번호 바꾸기</button>
       <button class="plain" id="logoutBtn" type="button">로그아웃</button>
     </div>
   </header>
   <form class="panel login-wrap" id="loginPanel" hidden novalidate>
     <h2>로그인</h2>
     <label>아이디 <input type="text" id="loginId" autocomplete="username" placeholder="아이디" maxlength="15"></label>
-    <label>비밀번호 <input type="text" class="pw" id="loginPw" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="비밀번호 (한글도 돼요)"></label>
+    <label>비밀번호 <input type="text" class="pw" id="loginPw" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="비밀번호 (한글, 영어, 숫자 다 돼요)"></label>
     <div class="btns">
       <button class="primary" id="loginBtn" type="submit">로그인</button>
       <button class="plain" id="signupBtn" type="button">처음이에요 (새 장부 만들기)</button>
@@ -161,6 +162,15 @@ body { margin: 0; }
       <button class="primary" id="settingsSave" type="button">저장하기</button>
       <button class="plain" id="settingsCancel" type="button">취소하기</button>
     </div>
+  </section>
+  <section class="panel" id="pwPanel" hidden>
+    <h2>비밀번호 바꾸기</h2>
+    <label>새 비밀번호 <input type="text" class="pw" id="newPw" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="한글, 영어, 숫자 다 돼요"></label>
+    <div class="btns">
+      <button class="primary" id="pwSave" type="button">저장하기</button>
+      <button class="plain" id="pwCancel" type="button">취소하기</button>
+    </div>
+    <p class="msg" id="pwMsg" role="status"></p>
   </section>
   <section class="panel" id="sharePanel" hidden>
     <h2>공유하기</h2>
@@ -231,7 +241,7 @@ body { margin: 0; }
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updatePassword } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { firebaseConfig } from "./config.js";
 import { buildXlsx } from "./xlsx.js";
@@ -305,7 +315,7 @@ function setView(v) {
   $("brand").classList.toggle("editable", v === "owner");
   setPage(page);
   $("layout").classList.toggle("readonly", v === "viewer");
-  $("settingsPanel").hidden = true; $("sharePanel").hidden = true;
+  $("settingsPanel").hidden = true; $("sharePanel").hidden = true; $("pwPanel").hidden = true;
   render();
 }
 function resizeLogo(file) {
@@ -612,6 +622,19 @@ $("shareBtn").onclick = () => { $("settingsPanel").hidden = true; $("sharePanel"
 $("shareClose").onclick = () => { $("sharePanel").hidden = true; };
 $("shareToggle").onclick = async () => { const next = !book.shareOn; try { await updateDoc(bookDoc(), { shareOn: next }); book.shareOn = next; paintShare(); } catch { $("shareState").textContent = "바꾸지 못했어요. 인터넷을 확인하고 다시 눌러 주세요."; } };
 $("shareCopy").onclick = async () => { try { await navigator.clipboard.writeText(shareUrl()); $("shareCopy").textContent = "복사했어요"; } catch { $("shareCopy").textContent = "복사하지 못했어요"; } setTimeout(() => { $("shareCopy").textContent = "주소 복사하기"; }, 1500); };
+$("pwBtn").onclick = () => { $("settingsPanel").hidden = true; $("sharePanel").hidden = true; $("pwPanel").hidden = false; $("newPw").value = ""; $("pwMsg").textContent = ""; $("newPw").focus(); };
+$("pwCancel").onclick = () => { $("pwPanel").hidden = true; };
+$("pwSave").onclick = async () => {
+  const m = $("pwMsg"), v = $("newPw").value;
+  m.classList.add("err");
+  if (!v) { m.textContent = "새 비밀번호를 적어 주세요."; return; }
+  try {
+    await updatePassword(auth.currentUser, fbPw(v));
+    $("newPw").value = ""; m.classList.remove("err"); m.textContent = "비밀번호를 바꿨어요. 다음 로그인부터 새 비밀번호를 쓰세요.";
+  } catch (e) {
+    m.textContent = e && e.code === "auth/requires-recent-login" ? "로그인한 지 오래됐어요. 로그아웃하고 다시 로그인한 뒤 바꿔 주세요." : "바꾸지 못했어요. 인터넷을 확인하고 다시 눌러 주세요.";
+  }
+};
 $("logoutBtn").onclick = () => signOut(auth);
 const loginVals = () => {
   const id = $("loginId").value.trim(), pw = $("loginPw").value;
