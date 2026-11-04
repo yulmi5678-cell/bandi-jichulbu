@@ -237,6 +237,12 @@ body { margin: 0; }
         <button class="plain export" id="exportYearBtn" type="button" hidden></button>
       </div>
       <p class="msg" id="exportMsg" role="status"></p>
+      <div class="exports" id="importBox">
+        <input type="file" id="importFile" accept=".json,application/json" hidden>
+        <button class="plain export" id="importBtn" type="button">자료 가져오기</button>
+        <button class="primary" id="importGo" type="button" hidden>가져오기 확정</button>
+      </div>
+      <p class="msg" id="importMsg" role="status"></p>
     </section>
   </div>
 </div>
@@ -320,6 +326,7 @@ function setView(v) {
   setPage(page);
   $("layout").classList.toggle("readonly", v === "viewer");
   $("settingsPanel").hidden = true; $("sharePanel").hidden = true; $("pwPanel").hidden = true;
+  $("importBox").hidden = v !== "owner";
   render();
 }
 function resizeLogo(file) {
@@ -639,6 +646,30 @@ $("pwSave").onclick = async () => {
   } catch (e) {
     m.textContent = e && e.code === "auth/requires-recent-login" ? "로그인한 지 오래됐어요. 로그아웃하고 다시 로그인한 뒤 바꿔 주세요." : "바꾸지 못했어요. 인터넷을 확인하고 다시 눌러 주세요.";
   }
+};
+let importRows = null;
+$("importBtn").onclick = () => $("importFile").click();
+$("importFile").onchange = async e => {
+  const f = e.target.files[0], m = $("importMsg"); if (!f) return;
+  $("importGo").hidden = true; importRows = null; m.classList.add("err");
+  try {
+    const text = await f.text(); e.target.value = "";
+    const d = JSON.parse(text);
+    if (d.format !== "bandi-jichulbu-import" || !Array.isArray(d.rows) || !d.rows.length) throw 0;
+    importRows = d.rows; m.classList.remove("err");
+    m.textContent = `${importRows.length}건, 합계 ${won(sumOf(importRows))}을 가져와요. 맞으면 가져오기 확정을 눌러 주세요.`;
+    $("importGo").hidden = false;
+  } catch { m.textContent = "가져올 수 없는 파일이에요. 받으신 파일이 맞는지 확인해 주세요."; }
+};
+$("importGo").onclick = async () => {
+  const m = $("importMsg"), ex = collection(fs, "jichulBooks", bookId, "expenses");
+  $("importGo").hidden = true; m.classList.remove("err");
+  try {
+    let n = 0;
+    for (const { id, ...r } of importRows) { await setDoc(doc(ex, id), r); n++; m.textContent = `가져오는 중이에요 (${n}/${importRows.length})`; }
+    month = importRows[importRows.length - 1].date.slice(0, 7); render();
+    m.textContent = `${n}건을 가져왔어요.`; importRows = null;
+  } catch { m.classList.add("err"); m.textContent = "가져오다 멈췄어요. 인터넷을 확인하고 파일을 다시 골라 주세요. 이미 들어간 건은 겹치지 않아요."; }
 };
 $("logoutBtn").onclick = () => signOut(auth);
 const loginVals = () => {
