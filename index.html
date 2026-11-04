@@ -337,7 +337,7 @@ function resizeLogo(file) {
 function showDraftLogo() { $("logoPreview").hidden = !draftLogo; if (draftLogo) $("logoPreview").src = draftLogo; }
 
 function say(text, isErr) { $("msg").textContent = text; $("msg").classList.toggle("err", !!isErr); }
-function setPay(v) { pay = v; document.querySelectorAll("#pay button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.pay === v))); }
+function setPay(v) { pay = v; document.querySelectorAll("#pay button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.pay === v))); $("receipt").closest("label").hidden = v === "transfer"; }
 
 function addItem(item = {}) {
   const row = document.createElement("div"); row.className = "itemrow";
@@ -401,7 +401,7 @@ function render() {
   $("transferTotal").textContent = won(sumOf(list.filter(r => r.pay === "transfer")));
   $("nopayTotal").textContent = won(nopay);
   $("nopayLine").hidden = !list.some(r => !r.pay);
-  const missing = list.filter(r => !r.receipt).length;
+  const missing = list.filter(r => !r.receipt && r.pay !== "transfer").length;
   $("count").textContent = list.length ? `${list.length}건` + (missing ? ` · 영수증 안 챙긴 것 ${missing}건` : " · 영수증 모두 챙김") : "";
   $("count").className = missing ? "need" : "";
   $("exportBtn").hidden = !list.length;
@@ -444,7 +444,7 @@ function render() {
     tag.className = "tag " + (r.receipt ? "yes" : "no");
     tag.innerHTML = iconHtml("receipt"); tag.append(r.receipt ? "챙김" : "아직");
     if (view === "owner") tag.onclick = () => write(() => col.doc(r.id).update({ receipt: !r.receipt }));
-    tags.append(tag);
+    if (r.pay !== "transfer") tags.append(tag);
     const acts = document.createElement("div"); acts.className = "acts";
     if (named.length) {
       const more = document.createElement("button"); more.type = "button"; more.className = "link";
@@ -496,7 +496,7 @@ $("form").addEventListener("submit", async e => {
   if (!items.length) return say("금액을 적어 주세요.", true);
   if (items.some(i => !i.amount)) return say("금액이 비어 있는 항목이 있어요. 금액을 적거나 휴지통을 눌러 지워 주세요.", true);
   const amount = items.reduce((s, i) => s + lineSum(i), 0);
-  const body = { date, desc, amount, items, pay, receipt: $("receipt").checked, meal: $("meal").checked };
+  const body = { date, desc, amount, items, pay, receipt: pay !== "transfer" && $("receipt").checked, meal: $("meal").checked };
   const wasEditing = editingId;
   const ok = wasEditing
     ? await write(() => col.doc(wasEditing).update(body), "고친 내용을 저장했어요.")
@@ -530,7 +530,7 @@ function monthSheet(list, name) {
   const lines = [];
   for (const r of list) {
     const its = r.items && r.items.length ? r.items : [{ name: "", amount: r.amount, qty: "" }];
-    for (const i of its) lines.push([r.date, r.desc, i.name, i.amount, i.qty === "" ? "" : Number(i.qty), lineSum(i), payName(r), r.meal ? "식대" : "그 외", r.receipt ? "O" : "X"]);
+    for (const i of its) lines.push([r.date, r.desc, i.name, i.amount, i.qty === "" ? "" : Number(i.qty), lineSum(i), payName(r), r.meal ? "식대" : "그 외", r.pay === "transfer" ? "-" : r.receipt ? "O" : "X"]);
   }
   const foot = (n, v) => [n, "", "", "", "", v, "", "", ""];
   const rowsOut = [["날짜", "내용", "세부 항목", "1개 금액", "수량", "금액", "결제", "구분", "영수증"], ...lines,
