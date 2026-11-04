@@ -1,1 +1,8 @@
-export const firebaseConfig = JSON.parse('{"apiKey":"AIzaSyAHVhYKD6EuTBPtcFU8xV94losZXbkJKQ4","authDomain":"bandi-chulgyeol.firebaseapp.com","projectId":"bandi-chulgyeol","storageBucket":"bandi-chulgyeol.firebasestorage.app","messagingSenderId":"29922667571","appId":"1:29922667571:web:c9f1046ca69475f31bc746"}');
+export const firebaseConfig = {
+  apiKey: "AIzaSyBOhBmSjTPWIMOUacGnQdK_USDeiGPQwzY",
+  authDomain: "bandi-jichulbu.firebaseapp.com",
+  projectId: "bandi-jichulbu",
+  storageBucket: "bandi-jichulbu.firebasestorage.app",
+  messagingSenderId: "947722554317",
+  appId: "1:947722554317:web:b47348222c29ffb6fed284"
+};
