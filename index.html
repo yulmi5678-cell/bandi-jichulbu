@@ -123,6 +123,7 @@ li.row { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 2p
 @media (prefers-reduced-motion: no-preference) { button { transition: opacity .12s; } button:active { opacity: .7; } }
 html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); background: var(--bg); }
 body { margin: 0; }
+.pw { -webkit-text-security: disc; }
 .login-wrap { max-width: 420px; width: 100%; margin: 6vh auto 0; }
 </style>
 </head><body>
@@ -138,7 +139,7 @@ body { margin: 0; }
   <form class="panel login-wrap" id="loginPanel" hidden novalidate>
     <h2>로그인</h2>
     <label>아이디 <input type="text" id="loginId" autocomplete="username" placeholder="아이디" maxlength="15"></label>
-    <label>비밀번호 <input type="password" id="loginPw" autocomplete="current-password" placeholder="비밀번호"></label>
+    <label>비밀번호 <input type="text" class="pw" id="loginPw" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="비밀번호 (한글도 돼요)"></label>
     <div class="btns">
       <button class="primary" id="loginBtn" type="submit">로그인</button>
       <button class="plain" id="signupBtn" type="button">처음이에요 (새 장부 만들기)</button>
