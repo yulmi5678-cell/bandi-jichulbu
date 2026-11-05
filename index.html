@@ -87,6 +87,14 @@ input[type=date], input[type=text] { width: 100%; min-width: 0; min-height: 46px
 .cardpick button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-text); color: var(--accent-text); font-weight: 700; }
 .sumline.sub span { padding-left: 12px; }
 .sumline.sub b { font-size: 15px; font-weight: 500; }
+.money { position: relative; display: block; }
+.money input { padding-right: 34px; text-align: right; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.money span { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+.hint { margin: 0; font-size: 13px; color: var(--warn); }
+.daybox { display: grid; gap: 4px; padding-top: 12px; border-top: 1px solid var(--line); }
+.daybox h3 { margin: 0; font-size: 14px; font-weight: 500; color: var(--muted); }
+.dayrow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.dayrow .sub { display: block; font-size: 13px; color: var(--muted); }
 .checks { display: flex; gap: 18px; flex-wrap: wrap; }
 .check { display: flex; align-items: center; gap: 8px; min-height: 32px; color: var(--fg); font-size: 15px; font-weight: 400; cursor: pointer; }
 .check input { width: 20px; height: 20px; accent-color: var(--accent); }
@@ -197,12 +205,10 @@ body { margin: 0; }
       <label>날짜 <input type="date" id="date" required></label>
       <label>내용 <select id="descPick"></select></label>
       <input type="text" id="desc" maxlength="100" placeholder="내용을 직접 적어 주세요" autocomplete="off" aria-label="내용 직접 입력" hidden>
-      <div class="items">
-        <div class="itemrow itemhead"><span>세부 항목</span><span class="n">1개 금액</span><span></span><span class="n">수량</span><span></span></div>
-        <div class="items" id="items"></div>
-        <button class="addrow" id="addRow" type="button">+ 항목 추가</button>
-      </div>
-      <div class="autosum"><span>이 결제 합계</span><b id="autoSum">0원</b></div>
+      <label>금액
+        <span class="money"><input type="text" id="amount" inputmode="numeric" placeholder="0" autocomplete="off"><span>원</span></span>
+      </label>
+      <p class="hint" id="itemsNote" hidden>세부 항목이 있는 내역이에요. 금액을 바꾸면 세부 항목은 사라지고 이 금액만 남아요.</p>
       <div class="pay" id="pay" role="group" aria-label="결제 방법">
         <button type="button" data-pay="card" aria-pressed="false"><span class="ic" data-i="card"></span>카드</button>
         <button type="button" data-pay="cash" aria-pressed="false"><span class="ic" data-i="cash"></span>현금</button>
@@ -214,11 +220,15 @@ body { margin: 0; }
         <label class="check"><input type="checkbox" id="receipt"> <span><span class="ic" data-i="receipt"></span>영수증 챙겼어요</span></label>
       </div>
       <div class="btns">
-        <button class="primary" id="saveBtn" type="submit">저장하기</button>
+        <button class="primary" id="saveBtn" type="submit">+ 추가</button>
         <button class="plain" id="cancelBtn" type="button" hidden>취소하기</button>
         <button class="plain danger" id="deleteBtn" type="button" hidden>삭제하기</button>
       </div>
       <p class="msg" id="msg" role="status"></p>
+      <div class="daybox" id="dayBox" hidden>
+        <h3 id="dayTitle"></h3>
+        <ul id="dayList"></ul>
+      </div>
     </form>
 
     <section class="book" id="bookPage">
@@ -360,29 +370,26 @@ function showDraftLogo() { $("logoPreview").hidden = !draftLogo; if (draftLogo) 
 function say(text, isErr) { $("msg").textContent = text; $("msg").classList.toggle("err", !!isErr); }
 function setPay(v) { pay = v; document.querySelectorAll("#pay button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.pay === v))); $("receipt").closest("label").hidden = v === "transfer"; $("cardPick").hidden = v !== "card"; }
 
-function addItem(item = {}) {
-  const row = document.createElement("div"); row.className = "itemrow";
-  const name = document.createElement("input"); name.type = "text"; name.className = "iname"; name.placeholder = "항목 이름"; name.maxLength = 60; name.value = item.name || ""; name.setAttribute("aria-label", "세부 항목");
-  const amt = document.createElement("input"); amt.type = "text"; amt.className = "iamt n"; amt.inputMode = "numeric"; amt.placeholder = "0"; amt.value = item.amount ? item.amount.toLocaleString("ko-KR") : ""; amt.setAttribute("aria-label", "금액");
-  const qty = document.createElement("input"); qty.type = "text"; qty.className = "iqty n"; qty.inputMode = "numeric"; qty.value = item.qty || ""; qty.setAttribute("aria-label", "수량");
-  const rm = document.createElement("button"); rm.type = "button"; rm.className = "remove"; rm.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></svg>'; rm.setAttribute("aria-label", "이 항목 지우기");
-  rm.onclick = () => { row.remove(); if (!$("items").children.length) addItem(); updateAuto(); };
-  const times = document.createElement("span"); times.className = "times"; times.textContent = "×";
-  row.append(name, amt, times, qty, rm);
-  $("items").append(row);
-}
-function readItems() {
-  return [...$("items").children].map(r => ({
-    name: r.querySelector(".iname").value.trim(),
-    amount: toNum(r.querySelector(".iamt").value),
-    qty: toNum(r.querySelector(".iqty").value) || ""
+let editItems = null;
+$("amount").addEventListener("input", e => {
+  const n = e.target.value.replace(/[^\d]/g, "").slice(0, 12);
+  e.target.value = n ? Number(n).toLocaleString("ko-KR") : "";
+});
+$("date").addEventListener("change", () => renderDay());
+function renderDay() {
+  const date = $("date").value, list = rows.filter(r => r.date === date).sort((a, b) => a.createdAt - b.createdAt);
+  $("dayBox").hidden = !list.length || !!editingId;
+  if (!list.length) return;
+  $("dayTitle").textContent = `${Number(date.slice(5, 7))}월 ${Number(date.slice(8))}일에 적은 내역 · ${won(sumOf(list))}`;
+  $("dayList").replaceChildren(...list.map(r => {
+    const li = document.createElement("li"); li.className = "dayrow";
+    const a = document.createElement("span"); a.className = "desc"; a.textContent = r.desc;
+    const p = document.createElement("span"); p.className = "sub"; p.textContent = payLabel(r) || "결제 방법 안 고름"; a.append(p);
+    const m = document.createElement("span"); m.className = "amt"; m.textContent = won(r.amount);
+    const b = document.createElement("button"); b.type = "button"; b.className = "link"; b.textContent = "고치기"; b.onclick = () => startEdit(r);
+    li.append(a, m, b); return li;
   }));
 }
-function updateAuto() { $("autoSum").textContent = won(readItems().reduce((s, i) => s + lineSum(i), 0)); }
-$("items").addEventListener("input", e => {
-  if (e.target.classList.contains("iamt")) { const n = e.target.value.replace(/[^\d]/g, "").slice(0, 12); e.target.value = n ? Number(n).toLocaleString("ko-KR") : ""; updateAuto(); }
-  if (e.target.classList.contains("iqty")) { e.target.value = e.target.value.replace(/[^\d]/g, "").slice(0, 5); updateAuto(); }
-});
 $("descPick").onchange = e => {
   const v = e.target.value, custom = v === CUSTOM;
   $("desc").hidden = !custom;
@@ -390,16 +397,15 @@ $("descPick").onchange = e => {
   if (custom) $("desc").focus();
   if (v === "식대") $("meal").checked = true;
 };
-$("addRow").onclick = () => { addItem(); $("items").lastElementChild.querySelector(".iname").focus(); };
 $("pay").addEventListener("click", e => { if (e.target.dataset.pay) setPay(e.target.dataset.pay); });
 
 function resetForm(keepDate) {
   editingId = null; deleteArmed = false;
   if (!keepDate) $("date").value = todayStr();
   setDesc(""); $("receipt").checked = false; $("meal").checked = false;
-  $("items").replaceChildren(); addItem(); updateAuto(); setPay("card");
+  $("amount").value = ""; editItems = null; $("itemsNote").hidden = true; setPay("card");
   $("formTitle").textContent = "새 지출 적기";
-  $("saveBtn").textContent = "저장하기";
+  $("saveBtn").textContent = "+ 추가";
   $("cancelBtn").hidden = true; $("deleteBtn").hidden = true;
   $("deleteBtn").textContent = "삭제하기";
 }
@@ -482,6 +488,7 @@ function render() {
     ul.append(li);
   }
   fillDesc();
+  renderDay();
 }
 
 function startEdit(r) {
@@ -490,9 +497,10 @@ function startEdit(r) {
   $("date").value = r.date; setDesc(r.desc);
   $("receipt").checked = !!r.receipt; $("meal").checked = !!r.meal;
   setPay(r.pay || null); setCard(r.pay === "card" ? cardOf(r) : cardName);
-  $("items").replaceChildren();
-  (r.items && r.items.length ? r.items : [{ name: "", amount: r.amount, qty: "" }]).forEach(addItem);
-  updateAuto();
+  $("amount").value = r.amount.toLocaleString("ko-KR");
+  editItems = r.items && r.items.some(i => i.name) ? { items: r.items, amount: r.amount } : null;
+  $("itemsNote").hidden = !editItems;
+  $("dayBox").hidden = true;
   $("formTitle").textContent = `${Number(r.date.slice(5, 7))}월 ${Number(r.date.slice(8))}일 지출 고치기`;
   $("saveBtn").textContent = "고친 내용 저장";
   $("cancelBtn").hidden = false; $("deleteBtn").hidden = false; $("deleteBtn").textContent = "삭제하기";
@@ -512,18 +520,23 @@ async function write(fn, okText) {
 $("form").addEventListener("submit", async e => {
   e.preventDefault();
   const date = $("date").value, desc = $("desc").value.trim();
-  const items = readItems().filter(i => i.name || i.amount);
+  const amount = toNum($("amount").value);
   if (!date) return say("날짜를 골라 주세요.", true);
-  if (!desc) { $("desc").focus(); return say("내용을 고르거나 직접 적어 주세요.", true); }
-  if (!items.length) return say("금액을 적어 주세요.", true);
-  if (items.some(i => !i.amount)) return say("금액이 비어 있는 항목이 있어요. 금액을 적거나 휴지통을 눌러 지워 주세요.", true);
-  const amount = items.reduce((s, i) => s + lineSum(i), 0);
+  if (!desc) { ($("desc").hidden ? $("descPick") : $("desc")).focus(); return say("내용을 고르거나 직접 적어 주세요.", true); }
+  if (!amount) { $("amount").focus(); return say("금액을 적어 주세요.", true); }
+  const items = editItems && editItems.amount === amount ? editItems.items : [{ name: "", amount, qty: "" }];
   const body = { date, desc, amount, items, pay, cardName: pay === "card" ? cardName : null, receipt: pay !== "transfer" && $("receipt").checked, meal: $("meal").checked };
   const wasEditing = editingId;
   const ok = wasEditing
     ? await write(() => col.doc(wasEditing).update(body), "고친 내용을 저장했어요.")
-    : await write(() => col.add({ ...body, createdAt: Date.now() }), "저장했어요.");
-  if (ok) { month = date.slice(0, 7); resetForm(true); render(); if (wasEditing) setPage("book"); }
+    : await write(() => col.add({ ...body, createdAt: Date.now() }), `${desc} ${won(amount)} 추가했어요.`);
+  if (!ok) return;
+  month = date.slice(0, 7);
+  if (wasEditing) { resetForm(true); render(); setPage("book"); return; }
+  const custom = $("descPick").value === CUSTOM;
+  $("amount").value = ""; $("meal").checked = false; $("receipt").checked = false;
+  if (custom) { $("desc").value = ""; $("desc").focus(); } else { setDesc(""); $("descPick").focus(); }
+  render();
 });
 
 $("cancelBtn").onclick = () => { resetForm(); say(""); setPage("book"); };
