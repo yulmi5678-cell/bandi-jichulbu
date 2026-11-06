@@ -501,6 +501,7 @@ const onPhotoPicked = async e => {
     try {
       if (isPdf(f)) say("PDF를 사진으로 바꾸는 중이에요.");
       photos = isPdf(f) ? await pdfToPhotos(f) : [await compressPhoto(f)];
+      if (e.target.id === "docFile") photos.forEach(p => { p.doc = true; });
       if (isPdf(f)) say("");
     } catch { say(isPdf(f) ? "이 PDF는 쓸 수 없어요. 암호가 걸려 있는지 확인하거나 인터넷을 확인해 주세요." : "이 사진은 쓸 수 없어요. 다른 사진을 골라 주세요.", true); continue; }
     for (const p of photos) {
@@ -756,10 +757,10 @@ function saveFile(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
   $("exportMsg").classList.remove("err"); $("exportMsg").textContent = (filename.endsWith(".pdf") ? "PDF" : "엑셀") + " 파일을 저장했어요.";
 }
-const PW = 1240, PH = 1754, PM = 70;
-function pdfCanvas() { const c = document.createElement("canvas"); c.width = PW; c.height = PH; const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, PW, PH); g.fillStyle = "#222"; g.textBaseline = "top"; return { c, g }; }
+const PW = 1240, PH = 1754, PM = 70, PHOTO_W = 350, PHOTO_H = 500, PS = 1.5;
+function pdfCanvas() { const c = document.createElement("canvas"); c.width = PW * PS; c.height = PH * PS; const g = c.getContext("2d"); g.scale(PS, PS); g.imageSmoothingQuality = "high"; g.fillStyle = "#fff"; g.fillRect(0, 0, PW, PH); g.fillStyle = "#222"; g.textBaseline = "top"; return { c, g }; }
 function loadImg(src) { return new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = src; }); }
-function canvasToPage(c) { const b = atob(c.toDataURL("image/jpeg", 0.8).split(",")[1]), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return { bytes: u, w: PW, h: PH }; }
+function canvasToPage(c) { const b = atob(c.toDataURL("image/jpeg", 0.8).split(",")[1]), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return { bytes: u, w: PW * PS, h: PH * PS }; }
 $("pdfBtn").onclick = async () => {
   const m = $("exportMsg"), btn = $("pdfBtn"); btn.disabled = true; m.classList.remove("err");
   try {
@@ -788,15 +789,24 @@ $("pdfBtn").onclick = async () => {
       need(90);
       text(r.desc + (r.meal ? " (식대)" : ""), 26, false, `${won(r.amount)}  ${payLabel(r)}`);
       for (const i of (r.items || []).filter(x => x.name)) { need(40); text(`   ${i.name}${i.qty ? ` ${i.amount.toLocaleString("ko-KR")}원 × ${i.qty}` : ""}`, 22, false, won(lineSum(i))); }
+      let x = PM, rowH = 0;
+      const boxW = PW - 2 * PM, fullH = PH - 2 * PM;
+      const endRow = () => { if (rowH) { y += rowH + 16; x = PM; rowH = 0; } };
       for (const id of r.photos || []) {
-        const img = await loadImg((await loadPhoto(id)).data);
-        const aspect = img.height / img.width, boxW = PW - 2 * PM, fullH = PH - 2 * PM;
-        const a4Like = aspect > 1.25 && aspect < 1.6 && img.width >= 1000;
-        const maxH = a4Like ? fullH : fullH * 0.6, k = Math.min(boxW / img.width, maxH / img.height);
-        const w = img.width * k, h = img.height * k;
-        need(h + 20);
-        cur.g.drawImage(img, PM, y, w, h); y += h + 20;
+        const ph = await loadPhoto(id), img = await loadImg(ph.data);
+        if (ph.doc) {
+          endRow();
+          const k = Math.min(boxW / img.width, fullH / img.height), w = img.width * k, h = img.height * k;
+          need(h + 16);
+          cur.g.drawImage(img, PM, y, w, h); y += h + 16;
+          continue;
+        }
+        const k = Math.min(PHOTO_W / img.width, PHOTO_H / img.height), w = img.width * k, h = img.height * k;
+        if (x + w > PW - PM) endRow();
+        if (y + h > PH - PM) { endRow(); next(); }
+        cur.g.drawImage(img, x, y, w, h); x += w + 16; rowH = Math.max(rowH, h);
       }
+      endRow();
       y += 8;
     }
     pages.push(canvasToPage(cur.c));
