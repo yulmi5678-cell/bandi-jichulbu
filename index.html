@@ -282,6 +282,7 @@ body { margin: 0; }
 </div>
 
 <input type="file" id="photoFile" accept="image/*" multiple hidden>
+<input type="file" id="cameraFile" accept="image/*" capture="environment" hidden>
 <div class="viewer" id="viewer" hidden>
   <button class="plain" id="viewerClose" type="button">닫기</button>
   <img id="viewerImg" alt="영수증 사진">
@@ -439,10 +440,15 @@ function photoTrash(onDelete) {
   };
   return b;
 }
-function addPhotoBtn(target) {
-  const b = document.createElement("button"); b.type = "button"; b.className = "addphoto"; b.innerHTML = iconHtml("camera") + "<br>사진 추가";
-  b.onclick = () => { photoTarget = target; $("photoFile").click(); };
-  return b;
+function addPhotoBtns(target) {
+  const make = (icon, label, input) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "addphoto"; b.innerHTML = iconHtml(icon) + "<br>" + label;
+    b.onclick = () => { photoTarget = target; $(input).click(); };
+    return b;
+  };
+  const list = [make("book", "사진 고르기", "photoFile")];
+  if (matchMedia("(pointer: coarse)").matches) list.unshift(make("camera", "사진 찍기", "cameraFile"));
+  return list;
 }
 function photoThumb(setSrc, onDelete) {
   const f = document.createElement("div"); f.className = "photo";
@@ -452,19 +458,19 @@ function photoThumb(setSrc, onDelete) {
   return f;
 }
 function photoPanel(r, box) {
-  box.replaceChildren(...(r.photos || []).map(id => photoThumb(i => { loadPhoto(id).then(d => { i.src = d.data; }).catch(() => { i.alt = "못 불러옴"; }); }, () => deletePhoto(r, id))), addPhotoBtn(r));
+  box.replaceChildren(...(r.photos || []).map(id => photoThumb(i => { loadPhoto(id).then(d => { i.src = d.data; }).catch(() => { i.alt = "못 불러옴"; }); }, () => deletePhoto(r, id))), ...addPhotoBtns(r));
 }
 function paintFormPhotos() {
   const box = $("formPhotos");
   if (editingId) { const r = rows.find(x => x.id === editingId); if (r) photoPanel(r, box); return; }
-  box.replaceChildren(...draftPhotos.map((p, n) => photoThumb(i => { i.src = p.data; }, () => { draftPhotos.splice(n, 1); paintFormPhotos(); })), addPhotoBtn(null));
+  box.replaceChildren(...draftPhotos.map((p, n) => photoThumb(i => { i.src = p.data; }, () => { draftPhotos.splice(n, 1); paintFormPhotos(); })), ...addPhotoBtns(null));
 }
 async function deletePhoto(r, id) {
   try { await col.deletePhoto(id); photoCache.delete(id); await col.doc(r.id).update({ photos: (rows.find(x => x.id === r.id)?.photos || []).filter(p => p !== id) }); }
   catch { photoError(); }
 }
 function photoError() { const t = "사진을 저장하거나 지우지 못했어요. 인터넷을 확인하고 다시 해 주세요."; if (page === "write") say(t, true); else { $("exportMsg").classList.add("err"); $("exportMsg").textContent = t; } }
-$("photoFile").onchange = async e => {
+const onPhotoPicked = async e => {
   const files = [...e.target.files], target = photoTarget;
   for (const f of files) {
     let p;
@@ -480,6 +486,8 @@ $("photoFile").onchange = async e => {
   }
   e.target.value = "";
 };
+$("photoFile").onchange = onPhotoPicked;
+$("cameraFile").onchange = onPhotoPicked;
 function trashBtn(r) {
   const b = document.createElement("button"); b.type = "button"; b.className = "trash"; b.setAttribute("aria-label", "삭제");
   b.innerHTML = iconHtml("trash");
