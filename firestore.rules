@@ -9,6 +9,9 @@ service cloud.firestore {
       allow list, delete: if false;
       allow create: if request.auth != null && request.resource.data.owner == request.auth.uid;
       allow update: if request.auth != null && resource.data.owner == request.auth.uid && request.resource.data.owner == request.auth.uid;
+      match /receiptPhotos/{id} {
+        allow read, write: if request.auth != null && get(/databases/$(database)/documents/jichulBooks/$(bookId)).data.owner == request.auth.uid;
+      }
       match /expenses/{id} {
         allow read: if get(/databases/$(database)/documents/jichulBooks/$(bookId)).data.shareOn == true
           || (request.auth != null && get(/databases/$(database)/documents/jichulBooks/$(bookId)).data.owner == request.auth.uid);
