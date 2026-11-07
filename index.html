@@ -99,15 +99,21 @@ input[type=date], input[type=text] { width: 100%; min-width: 0; min-height: 46px
 .trash .ic { margin-right: 0; }
 .trash .ic svg { width: 18px; height: 18px; }
 .trash.armed { color: var(--danger); font-weight: 700; }
-.photos { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; color: var(--fg); font-weight: 400; }
+.photos { display: grid; gap: 10px; color: var(--fg); font-weight: 400; }
+.photobtns { display: flex; flex-wrap: wrap; gap: 8px; }
+.photobtns .addphoto { width: auto; height: 44px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; }
+.photobtns .addphoto br { display: none; }
+.photolist { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 6px; }
 .photo { position: relative; width: 84px; height: 84px; }
 .photo img { width: 84px; height: 84px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); cursor: zoom-in; display: block; }
 .photo .trash { position: absolute; top: -6px; right: -6px; min-width: 30px; min-height: 30px; background: var(--surface); border: 1px solid var(--line); border-radius: 15px; }
 .photo .trash.armed { left: 0; right: 0; top: auto; bottom: 0; border-radius: 10px; font-size: 12px; }
 .addphoto { width: 84px; height: 84px; background: var(--accent-soft); color: var(--accent-text); border: 0; border-radius: 10px; font-size: 13px; font-weight: 700; }
 .rowphotos { grid-column: 2 / 4; margin: 6px 0; }
-.viewer { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; gap: 8px; padding: max(12px, env(safe-area-inset-top, 0px)) 12px 12px; background: var(--bg); overflow: auto; align-items: flex-end; }
-.viewer img { width: 100%; height: auto; }
+.viewer { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; gap: 8px; padding: max(12px, env(safe-area-inset-top, 0px)) 12px 12px; background: rgba(20, 20, 18, .85); overflow: auto; align-items: center; }
+.viewer #viewerClose { align-self: flex-end; background: var(--surface); }
+.viewer img { max-width: min(100%, 720px); max-height: calc(100vh - 90px); width: auto; height: auto; object-fit: contain; background: #fff; border-radius: 8px; cursor: zoom-in; }
+.viewer img.big { max-width: none; max-height: none; width: min(100%, 1400px); cursor: zoom-out; }
 .checks { display: flex; gap: 18px; flex-wrap: wrap; }
 .check { display: flex; align-items: center; gap: 8px; min-height: 32px; color: var(--fg); font-size: 15px; font-weight: 400; cursor: pointer; }
 .check input { width: 20px; height: 20px; accent-color: var(--accent); }
@@ -115,6 +121,10 @@ input[type=date], input[type=text] { width: 100%; min-width: 0; min-height: 46px
 .primary { flex: 1 1 120px; min-height: 50px; border: 0; border-radius: 14px; background: var(--accent); color: var(--accent-fg); font-weight: 700; font-size: 17px; }
 .plain { min-height: 44px; padding: 8px 14px; background: transparent; border: 1px solid var(--line); border-radius: 14px; }
 .danger { color: var(--danger); }
+.dayedit { cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line); }
+.dayedit:hover { color: var(--fg); }
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 30; max-width: calc(100% - 32px); padding: 14px 22px; border-radius: 14px; background: var(--accent); color: var(--accent-fg); font-weight: 700; font-size: 16px; box-shadow: 0 6px 20px rgba(0,0,0,.2); text-align: center; }
+@media (prefers-reduced-motion: no-preference) { .toast.show { animation: toastIn .2s ease-out; } @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 10px); } } }
 .msg { margin: 0; font-size: 14px; min-height: 21px; color: var(--accent-text); }
 .msg.err { color: var(--danger); }
 
@@ -281,6 +291,7 @@ body { margin: 0; }
   </div>
 </div>
 
+<div class="toast" id="toast" role="status" hidden></div>
 <input type="file" id="photoFile" accept="image/*" multiple hidden>
 <input type="file" id="cameraFile" accept="image/*" capture="environment" hidden>
 <input type="file" id="docFile" accept="application/pdf,image/*" multiple hidden>
@@ -397,6 +408,11 @@ function resizeLogo(file) {
 }
 function showDraftLogo() { $("logoPreview").hidden = !draftLogo; if (draftLogo) $("logoPreview").src = draftLogo; }
 
+let toastTimer;
+function toast(text) {
+  const t = $("toast"); t.textContent = text; t.hidden = false; t.classList.remove("show"); void t.offsetWidth; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2200);
+}
 function say(text, isErr) { $("msg").textContent = text; $("msg").classList.toggle("err", !!isErr); }
 function setPay(v) { pay = v; document.querySelectorAll("#pay button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.pay === v))); $("receipt").closest("label").hidden = v === "transfer"; $("cardPick").hidden = v !== "card"; }
 
@@ -453,7 +469,9 @@ async function loadPhoto(id) {
   photoCache.set(id, d);
   return d;
 }
-function openViewer(src) { $("viewerImg").src = src; $("viewer").hidden = false; }
+function openViewer(src) { $("viewerImg").classList.remove("big"); $("viewerImg").src = src; $("viewer").hidden = false; }
+$("viewerImg").onclick = () => $("viewerImg").classList.toggle("big");
+$("viewer").addEventListener("click", e => { if (e.target.id === "viewer") $("viewerClose").click(); });
 $("viewerClose").onclick = () => { $("viewer").hidden = true; $("viewerImg").removeAttribute("src"); };
 function photoTrash(onDelete) {
   const b = document.createElement("button"); b.type = "button"; b.className = "trash"; b.setAttribute("aria-label", "사진 삭제"); b.innerHTML = iconHtml("trash");
@@ -482,13 +500,18 @@ function photoThumb(setSrc, onDelete) {
   f.append(i, photoTrash(onDelete));
   return f;
 }
+function photoLayout(box, btns, thumbs) {
+  const top = document.createElement("div"); top.className = "photobtns"; top.append(...btns);
+  const list = document.createElement("div"); list.className = "photolist"; list.append(...thumbs);
+  box.replaceChildren(top, ...(thumbs.length ? [list] : []));
+}
 function photoPanel(r, box) {
-  box.replaceChildren(...(r.photos || []).map(id => photoThumb(i => { loadPhoto(id).then(d => { i.src = d.data; }).catch(() => { i.alt = "못 불러옴"; }); }, () => deletePhoto(r, id))), ...addPhotoBtns(r));
+  photoLayout(box, addPhotoBtns(r), (r.photos || []).map(id => photoThumb(i => { loadPhoto(id).then(d => { i.src = d.data; }).catch(() => { i.alt = "못 불러옴"; }); }, () => deletePhoto(r, id))));
 }
 function paintFormPhotos() {
   const box = $("formPhotos");
   if (editingId) { const r = rows.find(x => x.id === editingId); if (r) photoPanel(r, box); return; }
-  box.replaceChildren(...draftPhotos.map((p, n) => photoThumb(i => { i.src = p.data; }, () => { draftPhotos.splice(n, 1); paintFormPhotos(); })), ...addPhotoBtns(null));
+  photoLayout(box, addPhotoBtns(null), draftPhotos.map((p, n) => photoThumb(i => { i.src = p.data; }, () => { draftPhotos.splice(n, 1); paintFormPhotos(); })));
 }
 async function deletePhoto(r, id) {
   try { await col.deletePhoto(id); photoCache.delete(id); await col.doc(r.id).update({ photos: (rows.find(x => x.id === r.id)?.photos || []).filter(p => p !== id) }); }
@@ -618,6 +641,7 @@ function render() {
     day.textContent = `${Number(r.date.slice(5, 7))}/${Number(r.date.slice(8))} (${wd(r.date)})`;
     const desc = document.createElement("span"); desc.className = "desc"; desc.textContent = r.desc;
     const amt = document.createElement("span"); amt.className = "amt"; amt.textContent = won(r.amount);
+    if (view === "owner") { day.classList.add("dayedit"); day.setAttribute("role", "button"); day.tabIndex = 0; day.title = "눌러서 수정"; day.onclick = () => startEdit(r); day.onkeydown = e => { if (e.key === "Enter") startEdit(r); }; }
     li.append(day, desc, amt);
     const named = namedItems(r);
     if (opened.has(r.id) && named.length) {
@@ -685,7 +709,7 @@ function startEdit(r) {
 
 async function write(fn, okText) {
   if (!col) { say("저장할 곳에 연결되지 않았어요. 인터넷을 확인하고 새로고침해 주세요.", true); return false; }
-  try { await fn(); if (okText) say(okText); return true; }
+  try { await fn(); if (okText) { say(okText); toast(okText.endsWith("추가했어요.") ? "저장되었습니다" : okText); } return true; }
   catch (e) {
     say(e && e.code === "quota_exceeded" ? "저장 공간이 가득 찼어요. 오래된 내역을 지운 뒤 다시 저장해 주세요." : "저장하지 못했어요. 인터넷을 확인하고 다시 눌러 주세요.", true);
     return false;
